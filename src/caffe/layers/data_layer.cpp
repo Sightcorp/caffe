@@ -43,7 +43,7 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       << top[0]->width();
   // label
   if (this->output_labels_) {
-    vector<int> label_shape(1, batch_size);
+    vector<int> label_shape(1 + datum.labels_size(), batch_size);
     top[1]->Reshape(label_shape);
     for (int i = 0; i < this->PREFETCH_COUNT; ++i) {
       this->prefetch_[i].label_.Reshape(label_shape);
@@ -90,8 +90,13 @@ void DataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
     this->transformed_data_.set_cpu_data(top_data + offset);
     this->data_transformer_->Transform(datum, &(this->transformed_data_));
     // Copy label.
+
     if (this->output_labels_) {
-      top_label[item_id] = datum.label();
+      const int labels_size = 1 + datum.labels_size();
+      for (int label_id = 0; label_id < labels_size; ++label_id)
+      {
+        top_label[item_id * labels_size + label_id] = (label_id == 0) ? datum.label() : datum.labels(label_id - 1);
+      }
     }
     trans_time += timer.MicroSeconds();
 
