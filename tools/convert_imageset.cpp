@@ -40,6 +40,9 @@ DEFINE_bool(check_size, false,
     "When this option is on, check that all the datum have the same size");
 DEFINE_bool(encoded, false,
     "When this option is on, the encoded image will be save in datum");
+DEFINE_bool(csv, false,
+    "When this option is on, LISTFILE is expected to be comma separated. \
+     Use when filenames contain spaces.");
 DEFINE_string(encode_type, "",
     "Optional: What type should we encode the image as ('png','jpg',...).");
 
@@ -69,17 +72,34 @@ int main(int argc, char** argv) {
   const bool is_color = !FLAGS_gray;
   const bool check_size = FLAGS_check_size;
   const bool encoded = FLAGS_encoded;
+  const bool is_csv = FLAGS_csv;
   const string encode_type = FLAGS_encode_type;
 
   std::ifstream infile(argv[2]);
-  std::vector<std::pair<std::string, int> > lines;
-  std::string line;
-  size_t pos;
-  int label;
+  std::vector<std::pair<std::string, std::vector<int> > > lines;
+  char sep = is_csv ? ',' : ' ';
+  std::string line, fn;
+  size_t from, to, len;
+  std::vector<int> labels;
   while (std::getline(infile, line)) {
-    pos = line.find_last_of(' ');
-    label = atoi(line.substr(pos + 1).c_str());
-    lines.push_back(std::make_pair(line.substr(0, pos), label));
+    from = line.find_first_not_of(' ');
+    to = line.find_first_of(sep, from + 1);
+    if (to == std::string::npos) {
+      LOG(FATAL) << "Cannot tokenize " << argv[2] << " make sure file names and labels are separated by " << ( is_csv ? "commas." : "spaces." );
+      return 1;
+    }
+    fn = line.substr(from, to - from);
+    if (fn.find_first_of(',') != std::string::npos) {
+      LOG(FATAL) << "Commas found in parsed file name '" << fn << "' Use -csv=true flag to process comma separated LISTFILES.";
+      return 1;
+    }
+    while (to != std::string::npos) {
+      from = line.find_first_not_of(' ', to + 1);
+      to = line.find_first_of(sep, from + 1);
+      len = (to == std::string::npos) ? to : to - from;
+      labels.push_back(atoi(line.substr(from, len).c_str())); 
+    }
+    lines.push_back(std::make_pair(fn, labels));
   }
   if (FLAGS_shuffle) {
     // randomly shuffle data
